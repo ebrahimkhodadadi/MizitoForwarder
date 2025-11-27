@@ -1,37 +1,31 @@
-# Build stage
-FROM golang:1.24.4-alpine AS builder
+# Stage 1: Build the Go binary
+FROM golang:1.24 AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Install git and ca-certificates (needed for private repos and TLS)
-RUN apk add --no-cache git ca-certificates tzdata
-
-# Copy go mod and sum files
+# Copy go modules and download dependencies
 COPY go.mod go.sum ./
-
-# Download dependencies
 RUN go mod download
 
-# Copy source code
+# Copy the rest of the code
 COPY . .
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o mizito-forwarder .
+# Build the binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o main .
 
-# Final stage
-FROM alpine:latest
+# Stage 2: Minimal runtime image
+FROM debian:bookworm-slim
 
-# Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates tzdata
+# Install certificates
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /root/
+WORKDIR /app
 
-# Copy the binary from builder stage
-COPY --from=builder /app/mizito-forwarder .
+# Copy the binary from the builder
+COPY --from=builder /app/main .
 
-# Expose port
+# Expose port if needed (مثلاً 8080)
 EXPOSE 8080
 
-# Run the application
-CMD ["./mizito-forwarder"]
+# Run the binary
+CMD ["./main"]
