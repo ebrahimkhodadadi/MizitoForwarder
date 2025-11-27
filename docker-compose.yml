@@ -47,4 +47,3 @@ networks:
 
 volumes:
   token-data:
-    driver: local
