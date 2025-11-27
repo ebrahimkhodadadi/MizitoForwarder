@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  mizito-forwarder:
+    build: .
+    container_name: mizito-forwarder
+    ports:
+      - "3000:8080"
+    environment:
+      # Server Configuration
+      - SERVER_PORT=:8080
+      
+      # Mizito API Configuration
+      - MIZITO_BASE_URL=${MIZITO_BASE_URL:-https://app.mizito.ir}
+      - MIZITO_LOGIN_URL=${MIZITO_LOGIN_URL:-https://app.mizito.ir/capi/session/create}
+      - MIZITO_CHAT_API_URL=${MIZITO_CHAT_API_URL:-https://app.mizito.ir/api/chat/send}
+      
+      # Mizito Credentials (set these in your .env file)
+      - MIZITO_USERNAME=${MIZITO_USERNAME}
+      - MIZITO_PASSWORD=${MIZITO_PASSWORD}
+      - MIZITO_LOGIN_CODE=${MIZITO_LOGIN_CODE:-null}
+      - MIZITO_REG_ID=${MIZITO_REG_ID:-null}
+      - MIZITO_DIALOG_ID=${MIZITO_DIALOG_ID}
+      - MIZITO_FROM_USER_ID=${MIZITO_FROM_USER_ID}
+      
+      # JWT Token Configuration
+      - JWT_TOKEN_FILE=${JWT_TOKEN_FILE:-token.json}
+      
+      # Logging Configuration
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      # Mount directory to persist JWT token
+      - ./token-data:/root
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - mizito-network
+
+networks:
+  mizito-network:
+    driver: bridge
+
+volumes:
+  token-data:
+    driver: local
