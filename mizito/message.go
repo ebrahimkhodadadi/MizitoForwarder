@@ -15,28 +15,30 @@ import (
 
 // MessageRequest represents the message request structure based on the provided curl example
 type MessageRequest struct {
-	Underscore      string      `json:"_"`
-	ID              int         `json:"_id"`
-	Local           int         `json:"local"`
-	Dialog          string      `json:"dialog"`
-	Out             bool        `json:"out"`
-	Message         string      `json:"message"`
-	Media           interface{} `json:"media"`
-	From            string      `json:"from"`
-	Date            int64       `json:"date"`
-	SeenCount       int         `json:"seen_count"`
-	RandomID        float64     `json:"randomId"`
-	Pending         bool        `json:"pending"`
-	Mid             int         `json:"mid"`
-	RichMessageEntities []interface{} `json:"richMessageEntities"`
-	RichMessage     map[string]interface{} `json:"richMessage"`
-	RDate           string      `json:"rDate"`
-	RTime           string      `json:"rTime"`
-	RFullDate       string      `json:"rFullDate"`
-	Seen            bool        `json:"seen"`
-	StartUnread     bool        `json:"start_unread"`
-	NeedAvatar      bool        `json:"needAvatar"`
-	Dir             bool        `json:"dir"`
+	Underscore          string                 `json:"_"`
+	ID                  int                    `json:"_id"`
+	Local               int                    `json:"local"`
+	Dialog              string                 `json:"dialog"`
+	Out                 bool                   `json:"out"`
+	Message             string                 `json:"message"`
+	Media               interface{}            `json:"media"`
+	From                string                 `json:"from"`
+	Date                int64                  `json:"date"`
+	SeenCount           int                    `json:"seen_count"`
+	RandomID            float64                `json:"randomId"`
+	Pending             bool                   `json:"pending"`
+	Mid                 int                    `json:"mid"`
+	Id                  int                    `json:"id"`
+	RichMessageEntities []interface{}          `json:"richMessageEntities"`
+	RichMessage         map[string]interface{} `json:"richMessage"`
+	RDate               string                 `json:"rDate"`
+	RTime               string                 `json:"rTime"`
+	RFullDate           string                 `json:"rFullDate"`
+	Seen                bool                   `json:"seen"`
+	StartUnread         bool                   `json:"start_unread"`
+	NeedAvatar          bool                   `json:"needAvatar"`
+	NeedDate            bool                   `json:"needDate"`
+	Dir                 bool                   `json:"dir"`
 }
 
 // MessageResponse represents the message send response structure
@@ -65,9 +67,9 @@ func NewMessageService(config *config.Config, auth *AuthService, logger *logger.
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
-				MaxIdleConns:        10,
-				IdleConnTimeout:     90 * time.Second,
-				DisableCompression:  false,
+				MaxIdleConns:       10,
+				IdleConnTimeout:    90 * time.Second,
+				DisableCompression: false,
 			},
 		},
 	}
@@ -97,28 +99,30 @@ func (m *MessageService) SendMessage(messageText string) error {
 
 	// Prepare message request
 	msgReq := MessageRequest{
-		Underscore:      "message",
-		ID:              1,
-		Local:           1,
-		Dialog:          m.config.MizitoDialogID,
-		Out:             true,
-		Message:         messageText,
-		Media:           nil,
-		From:            m.config.MizitoFromUserID,
-		Date:            date,
-		SeenCount:       1,
-		RandomID:        randomID,
-		Pending:         true,
-		Mid:             1,
+		Underscore:          "message",
+		ID:                  1,
+		Local:               1,
+		Dialog:              m.config.MizitoDialogID,
+		Out:                 true,
+		Message:             messageText,
+		Media:               nil,
+		From:                m.config.MizitoFromUserID,
+		Date:                date,
+		SeenCount:           1,
+		RandomID:            randomID,
+		Pending:             true,
+		Mid:                 1,
+		Id:                  1,
 		RichMessageEntities: []interface{}{},
-		RichMessage:     map[string]interface{}{},
-		RDate:           persianDate,
-		RTime:           persianTime,
-		RFullDate:       persianFullDate,
-		Seen:            false,
-		StartUnread:     false,
-		NeedAvatar:      true,
-		Dir:             true,
+		RichMessage:         map[string]interface{}{},
+		RDate:               persianDate,
+		RTime:               persianTime,
+		RFullDate:           persianFullDate,
+		Seen:                false,
+		StartUnread:         false,
+		NeedAvatar:          true,
+		NeedDate:            true,
+		Dir:                 true,
 	}
 
 	// Marshal request to JSON
@@ -241,14 +245,14 @@ func (m *MessageService) formatPersianDate(t time.Time) string {
 	// In a real application, you might want to use a proper Persian calendar library
 	weekdays := []string{"یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنج‌شنبه", "جمعه", "شنبه"}
 	weekday := weekdays[t.Weekday()]
-	
+
 	// Get Persian day and month (simplified)
 	persianDay := t.Day()
 	persianMonth := t.Month()
-	
+
 	// Persian months (simplified)
 	months := []string{"", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"}
-	
+
 	return fmt.Sprintf("%s %d %s", weekday, persianDay, months[persianMonth])
 }
 
@@ -256,11 +260,11 @@ func (m *MessageService) formatPersianDate(t time.Time) string {
 func (m *MessageService) formatPersianTime(t time.Time) string {
 	hour := t.Hour()
 	minute := t.Minute()
-	
+
 	// Convert to Persian numerals (simplified)
 	persianHour := m.toPersianNumeral(hour)
 	persianMinute := m.toPersianNumeral(minute)
-	
+
 	return fmt.Sprintf("%s:%s", persianHour, persianMinute)
 }
 
@@ -269,17 +273,17 @@ func (m *MessageService) toPersianNumeral(num int) string {
 	// This is a simplified implementation
 	// Persian numerals: ۰۱۲۳۴۵۶۷۸۹
 	persianDigits := []rune{'۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'}
-	
+
 	result := ""
 	for num > 0 {
 		digit := num % 10
 		result = string(persianDigits[digit]) + result
 		num /= 10
 	}
-	
+
 	if result == "" {
 		result = "۰۰"
 	}
-	
+
 	return result
 }
