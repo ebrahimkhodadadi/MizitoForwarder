@@ -38,22 +38,22 @@ func main() {
 
 	// Initialize JWT manager
 	jwtMgr := jwt.NewManager(cfg, log)
-	
+
 	// Initialize Mizito authentication service
 	authService := mizito.NewAuthService(cfg, jwtMgr, log)
-	
+
 	// Initialize Mizito message service
 	messageService := mizito.NewMessageService(cfg, authService, log)
-	
+
 	// Initialize HTTP handler
 	httpHandler := handler.NewHandler(messageService, log)
 
 	// Setup HTTP router
 	router := mux.NewRouter()
-	
+
 	// Add middleware for logging
 	router.Use(loggingMiddleware(log))
-	
+
 	// Register routes
 	httpHandler.RegisterRoutes(router)
 
@@ -66,13 +66,13 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	// Initialize JWT token on startup
-	log.Info("Initializing JWT token...")
-	if err := authService.EnsureValidToken(); err != nil {
-		log.Warn("Failed to initialize JWT token on startup", "error", err)
-		// Continue startup, token will be refreshed when needed
+	// Load existing JWT token on startup if available
+	log.Info("Loading existing JWT token...")
+	if err := jwtMgr.LoadToken(); err != nil {
+		log.Warn("Failed to load existing JWT token on startup", "error", err)
+		// Continue startup, token will be obtained when needed
 	} else {
-		log.Info("JWT token initialized successfully")
+		log.Info("Existing JWT token loaded successfully")
 	}
 
 	// Start server in a goroutine
@@ -106,23 +106,23 @@ func loggingMiddleware(log *logger.Logger) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			
+
 			// Log request
-			log.Debug("HTTP request", 
-				"method", r.Method, 
-				"path", r.URL.Path, 
+			log.Debug("HTTP request",
+				"method", r.Method,
+				"path", r.URL.Path,
 				"remote_addr", r.RemoteAddr,
 				"user_agent", r.UserAgent())
-			
+
 			// Create response writer wrapper to capture status code
 			lrw := &loggingResponseWriter{
 				ResponseWriter: w,
 				statusCode:     http.StatusOK,
 			}
-			
+
 			// Call next handler
 			next.ServeHTTP(lrw, r)
-			
+
 			// Log response
 			duration := time.Since(start)
 			log.Info("HTTP request completed",
