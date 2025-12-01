@@ -92,10 +92,11 @@ func (m *MessageService) SendMessage(messageText string) error {
 	// Generate random ID
 	randomID := rand.Float64()
 
-	// Create Persian date/time strings (simplified for demo)
+	// Create Persian date/time strings
+	persianYear, persianMonth, persianDay := m.calculatePersianDate(now)
 	persianDate := m.formatPersianDate(now)
 	persianTime := m.formatPersianTime(now)
-	persianFullDate := fmt.Sprintf("%s - %s", persianTime, persianDate)
+	persianFullDate := fmt.Sprintf("%s - %d/%02d/%02d", persianTime, persianYear, persianMonth, persianDay)
 
 	// Prepare message request
 	msgReq := MessageRequest{
@@ -140,7 +141,14 @@ func (m *MessageService) SendMessage(messageText string) error {
 	// Set headers
 	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
 	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.8")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Origin", "https://office.mizito.ir")
 	req.Header.Set("Referer", "https://office.mizito.ir/")
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Site", "same-site")
+	req.Header.Set("Sec-GPC", "1")
 	req.Header.Set("x-token", token)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36")
 	req.Header.Set("sec-ch-ua", "\"Chromium\";v=\"142\", \"Brave\";v=\"142\", \"Not_A Brand\";v=\"99\"")
@@ -150,108 +158,79 @@ func (m *MessageService) SendMessage(messageText string) error {
 	m.logger.Debug("Message request headers", "headers", req.Header)
 	m.logger.Debug("Message request body", "body", string(jsonData))
 
-	// Make request with retry logic for unauthorized errors
-	return m.sendMessageWithRetry(req, 2)
+	// Make request
+	return m.sendRequest(req)
 }
 
-// sendMessageWithRetry sends a message with retry logic for unauthorized errors
-func (m *MessageService) sendMessageWithRetry(req *http.Request, maxRetries int) error {
-	var lastErr error
+// sendRequest sends the HTTP request and handles 401 by refreshing token
+func (m *MessageService) sendRequest(req *http.Request) error {
+	// Make request
+	resp, err := m.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("message request failed: %w", err)
+	}
+	defer resp.Body.Close()
 
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			m.logger.Info("Retrying message send", "attempt", attempt)
-			// Refresh token on retry
-			if err := m.auth.RefreshToken(); err != nil {
-				lastErr = fmt.Errorf("failed to refresh token on retry: %w", err)
-				continue
-			}
-
-			// Update token in request
-			token, err := m.auth.GetToken()
-			if err != nil {
-				lastErr = fmt.Errorf("failed to get refreshed token: %w", err)
-				continue
-			}
-			req.Header.Set("x-token", token)
-		}
-
-		// Make request
-		resp, err := m.client.Do(req)
-		if err != nil {
-			lastErr = fmt.Errorf("message request failed: %w", err)
-			continue
-		}
-		defer resp.Body.Close()
-
-		// Read response
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			lastErr = fmt.Errorf("failed to read message response: %w", err)
-			continue
-		}
-
-		m.logger.Debug("Message response status", "status", resp.StatusCode)
-		m.logger.Debug("Message response body", "body", string(body))
-
-		// Check HTTP status
-		if resp.StatusCode == http.StatusUnauthorized {
-			if attempt < maxRetries {
-				m.logger.Warn("Unauthorized response, will retry with fresh token")
-				continue
-			}
-			return fmt.Errorf("message send failed with unauthorized status after %d retries", maxRetries+1)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("message send failed with status: %d, body: %s", resp.StatusCode, string(body))
-		}
-
-		// Try to parse as boolean first
-		var boolResp BoolResponse
-		if err := json.Unmarshal(body, &boolResp); err == nil {
-			// Response is a boolean
-			if bool(boolResp) {
-				m.logger.Debug("Message sent successfully (boolean response)")
-				return nil
-			} else {
-				return fmt.Errorf("message send failed: received false response")
-			}
-		}
-
-		// Try to parse as JSON response
-		var msgResp MessageResponse
-		if err := json.Unmarshal(body, &msgResp); err == nil {
-			// Check response status
-			if msgResp.Status != 1 {
-				return fmt.Errorf("message send failed with status: %d, message: %s", msgResp.Status, msgResp.Message)
-			}
-		} else {
-			// Could not parse response at all
-			m.logger.Warn("Could not parse Mizito response", "response", string(body))
-			return fmt.Errorf("message send failed: unexpected response format")
-		}
-
-		m.logger.Info("Message sent successfully to Mizito chat")
-		return nil
+	// Read response
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read message response: %w", err)
 	}
 
-	return fmt.Errorf("message send failed after %d attempts, last error: %w", maxRetries+1, lastErr)
+	m.logger.Debug("Message response status", "status", resp.StatusCode)
+	m.logger.Debug("Message response body", "body", string(body))
+
+	// Check HTTP status
+	if resp.StatusCode == http.StatusUnauthorized {
+		m.logger.Warn("Unauthorized response, refreshing token")
+		if err := m.auth.RefreshToken(); err != nil {
+			return fmt.Errorf("failed to refresh token on 401: %w", err)
+		}
+		return fmt.Errorf("message send failed with unauthorized status, token refreshed")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("message send failed with status: %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	// Try to parse as boolean first
+	var boolResp BoolResponse
+	if err := json.Unmarshal(body, &boolResp); err == nil {
+		// Response is a boolean
+		if bool(boolResp) {
+			m.logger.Debug("Message sent successfully (boolean response)")
+			return nil
+		} else {
+			return fmt.Errorf("message send failed: received false response")
+		}
+	}
+
+	// Try to parse as JSON response
+	var msgResp MessageResponse
+	if err := json.Unmarshal(body, &msgResp); err == nil {
+		// Check response status
+		if msgResp.Status != 1 {
+			return fmt.Errorf("message send failed with status: %d, message: %s", msgResp.Status, msgResp.Message)
+		}
+	} else {
+		// Could not parse response at all
+		m.logger.Warn("Could not parse Mizito response", "response", string(body))
+		return fmt.Errorf("message send failed: unexpected response format")
+	}
+
+	m.logger.Info("Message sent successfully to Mizito chat")
+	return nil
 }
 
-// formatPersianDate formats date in Persian (simplified implementation)
+// formatPersianDate formats date in Persian
 func (m *MessageService) formatPersianDate(t time.Time) string {
-	// This is a simplified implementation
-	// In a real application, you might want to use a proper Persian calendar library
 	weekdays := []string{"یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنج‌شنبه", "جمعه", "شنبه"}
-	weekday := weekdays[t.Weekday()]
-
-	// Get Persian day and month (simplified)
-	persianDay := t.Day()
-	persianMonth := t.Month()
-
-	// Persian months (simplified)
 	months := []string{"", "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"}
+
+	// Calculate Persian date
+	_, persianMonth, persianDay := m.calculatePersianDate(t)
+
+	weekday := weekdays[t.Weekday()]
 
 	return fmt.Sprintf("%s %d %s", weekday, persianDay, months[persianMonth])
 }
@@ -266,6 +245,52 @@ func (m *MessageService) formatPersianTime(t time.Time) string {
 	persianMinute := m.toPersianNumeral(minute)
 
 	return fmt.Sprintf("%s:%s", persianHour, persianMinute)
+}
+
+// calculatePersianDate calculates Persian year, month, day from Gregorian date
+func (m *MessageService) calculatePersianDate(t time.Time) (int, int, int) {
+	// Persian new year is approximately March 21
+	isLeap := t.Year()%4 == 0 && (t.Year()%100 != 0 || t.Year()%400 == 0)
+	newYearDay := 80 // March 21 is day 80 in non-leap year (Jan 31 + Feb 28 + Mar 21 = 80)
+	if isLeap {
+		newYearDay = 81 // Feb 29
+	}
+
+	dayOfYear := t.YearDay()
+
+	var persianDayOfYear int
+	var persianYear int
+
+	if dayOfYear >= newYearDay {
+		persianDayOfYear = dayOfYear - newYearDay
+		persianYear = t.Year() - 621
+	} else {
+		// Previous Persian year
+		prevYear := t.Year() - 1
+		prevIsLeap := prevYear%4 == 0 && (prevYear%100 != 0 || prevYear%400 == 0)
+		prevDays := 365
+		if prevIsLeap {
+			prevDays = 366
+		}
+		persianDayOfYear = prevDays - (newYearDay - dayOfYear) + 1
+		persianYear = prevYear - 621
+	}
+
+	// Persian months: Farvardin to Esfand
+	persianMonths := []int{31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29}
+
+	cumulative := 0
+	for i, days := range persianMonths {
+		cumulative += days
+		if persianDayOfYear <= cumulative {
+			persianMonth := i + 1
+			persianDay := persianDayOfYear - (cumulative - days)
+			return persianYear, persianMonth, persianDay
+		}
+	}
+
+	// Should not reach here
+	return persianYear, 12, 29
 }
 
 // toPersianNumeral converts numbers to Persian numerals (simplified)

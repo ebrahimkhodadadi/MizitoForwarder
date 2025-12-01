@@ -51,9 +51,9 @@ func NewAuthService(config *config.Config, jwtMgr *jwt.Manager, logger *logger.L
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
-				MaxIdleConns:        10,
-				IdleConnTimeout:     90 * time.Second,
-				DisableCompression:  false,
+				MaxIdleConns:       10,
+				IdleConnTimeout:    90 * time.Second,
+				DisableCompression: false,
 			},
 		},
 	}
@@ -95,8 +95,18 @@ func (a *AuthService) Login() error {
 	// Set headers
 	req.Header.Set("Content-Type", "application/json;charset=UTF-8")
 	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.8")
+	req.Header.Set("Connection", "keep-alive")
 	req.Header.Set("Origin", "https://office.mizito.ir")
 	req.Header.Set("Referer", "https://office.mizito.ir/")
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Site", "same-site")
+	req.Header.Set("Sec-GPC", "1")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36")
+	req.Header.Set("sec-ch-ua", "\"Chromium\";v=\"142\", \"Brave\";v=\"142\", \"Not_A Brand\";v=\"99\"")
+	req.Header.Set("sec-ch-ua-mobile", "?0")
+	req.Header.Set("sec-ch-ua-platform", "\"Windows\"")
 
 	a.logger.Debug("Login request headers", "headers", req.Header)
 
@@ -173,7 +183,7 @@ func (a *AuthService) EnsureValidToken() error {
 // RefreshToken refreshes the JWT token by authenticating again
 func (a *AuthService) RefreshToken() error {
 	a.logger.Info("Refreshing JWT token")
-	
+
 	// Clear existing token
 	if err := a.jwtMgr.ClearToken(); err != nil {
 		a.logger.Warn("Failed to clear existing token", "error", err)
