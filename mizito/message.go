@@ -294,21 +294,16 @@ func (m *MessageService) calculatePersianDate(t time.Time) (int, int, int) {
 }
 
 // toPersianNumeral converts numbers to Persian numerals (simplified)
+// Always returns a 2-digit string for time formatting
 func (m *MessageService) toPersianNumeral(num int) string {
 	// This is a simplified implementation
 	// Persian numerals: ۰۱۲۳۴۵۶۷۸۹
 	persianDigits := []rune{'۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'}
 
-	result := ""
-	for num > 0 {
-		digit := num % 10
-		result = string(persianDigits[digit]) + result
-		num /= 10
-	}
+	// Extract tens and ones digits
+	tens := (num / 10) % 10
+	ones := num % 10
 
-	if result == "" {
-		result = "۰۰"
-	}
-
-	return result
+	// Always return 2 digits
+	return string(persianDigits[tens]) + string(persianDigits[ones])
 }
