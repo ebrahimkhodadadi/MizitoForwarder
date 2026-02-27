@@ -46,7 +46,7 @@ func main() {
 	messageService := mizito.NewMessageService(cfg, authService, log)
 
 	// Initialize HTTP handler
-	httpHandler := handler.NewHandler(messageService, log)
+	httpHandler := handler.NewHandler(messageService, log, cfg.AppToken)
 
 	// Setup HTTP router
 	router := mux.NewRouter()

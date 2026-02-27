@@ -27,6 +27,7 @@ A GoLang service that receives Gotify notifications and forwards them to Mizito 
 
 2. Edit `.env` with your Mizito credentials:
    ```env
+   APP_TOKEN=your_secret_app_token_here
    MIZITO_USERNAME=your_email@example.com
    MIZITO_PASSWORD=your_password
    MIZITO_DIALOG_ID=your_dialog_id
@@ -62,9 +63,24 @@ A GoLang service that receives Gotify notifications and forwards them to Mizito 
 
 ## API Endpoints
 
+### Authentication
+
+When `APP_TOKEN` is configured, all `/message` endpoints require authentication.
+Pass the token using **one** of the following methods (identical to the Gotify client token flow):
+
+| Method | Example |
+|--------|---------|
+| Query parameter | `POST /message?token=your_token` |
+| `Authorization` header | `Authorization: Bearer your_token` |
+| `X-Gotify-Key` header | `X-Gotify-Key: your_token` |
+
+Health-check endpoints (`/health`, `/api/v1/health`) are always public.
+
+> **Note:** If `APP_TOKEN` is left empty in `.env`, the endpoints are open. This is **not recommended** when the port is exposed to the internet.
+
 ### Send Gotify Notification
 ```http
-POST /api/v1/message
+POST /api/v1/message?token=your_token
 Content-Type: application/json
 
 {
@@ -88,6 +104,7 @@ GET /api/v1/health
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
+| `APP_TOKEN` | Token to authenticate API requests | - | Recommended |
 | `SERVER_PORT` | HTTP server port | `:3000` | No |
 | `MIZITO_USERNAME` | Mizito username/email | - | Yes |
 | `MIZITO_PASSWORD` | Mizito password | - | Yes |
@@ -158,6 +175,7 @@ The service provides comprehensive logging at different levels:
 
 ## Security Notes
 
+- **App Token**: Set `APP_TOKEN` in `.env` to restrict access to the `/message` endpoint. Tokens can be passed via `?token=`, `Authorization: Bearer`, or `X-Gotify-Key` header.
 - JWT tokens are stored in a JSON file with restricted permissions (0600)
 - Environment variables are used for sensitive configuration
 - API requests include proper headers and authentication

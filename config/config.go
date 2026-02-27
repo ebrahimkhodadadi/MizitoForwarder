@@ -14,18 +14,21 @@ type Config struct {
 	ServerPort string
 
 	// Mizito API configuration
-	MizitoBaseURL       string
-	MizitoLoginURL      string
-	MizitoChatAPIURL    string
-	MizitoUsername      string
-	MizitoPassword      string
-	MizitoLoginCode     string
-	MizitoRegID         string
-	MizitoDialogID      string
-	MizitoFromUserID    string
+	MizitoBaseURL    string
+	MizitoLoginURL   string
+	MizitoChatAPIURL string
+	MizitoUsername   string
+	MizitoPassword   string
+	MizitoLoginCode  string
+	MizitoRegID      string
+	MizitoDialogID   string
+	MizitoFromUserID string
 
 	// JWT token configuration
 	JWTTokenFile string
+
+	// App token for API authentication (optional but recommended)
+	AppToken string
 
 	// Logging configuration
 	LogLevel string
@@ -34,14 +37,14 @@ type Config struct {
 // DefaultConfig returns a Config with default values
 func DefaultConfig() *Config {
 	return &Config{
-		ServerPort:          ":8080",
-		MizitoBaseURL:       "https://app.mizito.ir",
-		MizitoLoginURL:      "https://app.mizito.ir/capi/session/create",
-		MizitoChatAPIURL:    "https://app.mizito.ir/api/chat/send",
-		JWTTokenFile:        "token.json",
-		LogLevel:            "info",
-		MizitoLoginCode:     "null",
-		MizitoRegID:         "null",
+		ServerPort:       ":8080",
+		MizitoBaseURL:    "https://app.mizito.ir",
+		MizitoLoginURL:   "https://app.mizito.ir/capi/session/create",
+		MizitoChatAPIURL: "https://app.mizito.ir/api/chat/send",
+		JWTTokenFile:     "token.json",
+		LogLevel:         "info",
+		MizitoLoginCode:  "null",
+		MizitoRegID:      "null",
 	}
 }
 
@@ -99,6 +102,11 @@ func Load() (*Config, error) {
 	// JWT configuration
 	if tokenFile := os.Getenv("JWT_TOKEN_FILE"); tokenFile != "" {
 		config.JWTTokenFile = tokenFile
+	}
+
+	// App token for API authentication
+	if appToken := os.Getenv("APP_TOKEN"); appToken != "" {
+		config.AppToken = appToken
 	}
 
 	// Logging configuration
