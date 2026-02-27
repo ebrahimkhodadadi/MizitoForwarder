@@ -24,13 +24,17 @@ services:
       - MIZITO_FROM_USER_ID=${MIZITO_FROM_USER_ID}
       
       # JWT Token Configuration
-      - JWT_TOKEN_FILE=${JWT_TOKEN_FILE:-token.json}
+      - JWT_TOKEN_FILE=${JWT_TOKEN_FILE:-/app/data/token.json}
+      
+      # App Token for API authentication
+      - APP_TOKEN=${APP_TOKEN}
       
       # Logging Configuration
       - LOG_LEVEL=${LOG_LEVEL:-info}
     volumes:
-      # Mount directory to persist JWT token
-      - ./token-data:/root
+      # Persist JWT token across container restarts.
+      # Mounted to /app/data so the binary at /app/main is not shadowed.
+      - ./token-data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
@@ -44,6 +48,3 @@ services:
 networks:
   mizito-network:
     driver: bridge
-
-volumes:
-  token-data:

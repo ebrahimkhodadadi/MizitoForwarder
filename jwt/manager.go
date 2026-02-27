@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -14,10 +15,10 @@ import (
 
 // TokenData represents the structure of the stored JWT token
 type TokenData struct {
-	Token       string    `json:"token"`
-	LastLoginUID string   `json:"last_login_uid"`
-	ExpiresAt   time.Time `json:"expires_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	Token        string    `json:"token"`
+	LastLoginUID string    `json:"last_login_uid"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // Manager handles JWT token storage and retrieval
@@ -56,7 +57,7 @@ func (m *Manager) LoadToken() error {
 	}
 
 	m.tokenData = &tokenData
-	m.logger.Info("JWT token loaded successfully", 
+	m.logger.Info("JWT token loaded successfully",
 		"expires_at", tokenData.ExpiresAt.Format(time.RFC3339),
 		"updated_at", tokenData.UpdatedAt.Format(time.RFC3339))
 
@@ -69,10 +70,10 @@ func (m *Manager) SaveToken(token, lastLoginUID string) error {
 	defer m.Mutex.Unlock()
 
 	tokenData := &TokenData{
-		Token:       token,
+		Token:        token,
 		LastLoginUID: lastLoginUID,
-		ExpiresAt:   time.Now().Add(24 * time.Hour), // Assuming 24 hour expiry
-		UpdatedAt:   time.Now(),
+		ExpiresAt:    time.Now().Add(24 * time.Hour), // Assuming 24 hour expiry
+		UpdatedAt:    time.Now(),
 	}
 
 	file, err := json.MarshalIndent(tokenData, "", "  ")
@@ -80,12 +81,19 @@ func (m *Manager) SaveToken(token, lastLoginUID string) error {
 		return fmt.Errorf("failed to marshal token data: %w", err)
 	}
 
+	// Ensure the parent directory exists (important when path is e.g. /app/data/token.json)
+	if dir := filepath.Dir(m.config.JWTTokenFile); dir != "." {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return fmt.Errorf("failed to create token directory: %w", err)
+		}
+	}
+
 	if err := ioutil.WriteFile(m.config.JWTTokenFile, file, 0600); err != nil {
 		return fmt.Errorf("failed to write token file: %w", err)
 	}
 
 	m.tokenData = tokenData
-	m.logger.Info("JWT token saved successfully", 
+	m.logger.Info("JWT token saved successfully",
 		"expires_at", tokenData.ExpiresAt.Format(time.RFC3339))
 
 	return nil

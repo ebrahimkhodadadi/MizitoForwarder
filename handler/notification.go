@@ -73,6 +73,11 @@ func (h *Handler) AppTokenMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
+		// 3. X-Gotify-Key: <token> (Gotify client compatibility)
+		if provided == "" {
+			provided = r.Header.Get("X-Gotify-Key")
+		}
+
 		if provided != h.appToken {
 			h.logger.Warn("Unauthorized request – invalid or missing app token",
 				"method", r.Method,
@@ -170,6 +175,8 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 
 // RegisterRoutes registers all HTTP routes
 func (h *Handler) RegisterRoutes(router *mux.Router) {
+	auth := h.AppTokenMiddleware
+
 	// Public routes (no auth required)
 	router.HandleFunc("/health", h.HealthCheck).Methods(http.MethodGet)
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -183,16 +190,15 @@ func (h *Handler) RegisterRoutes(router *mux.Router) {
 		json.NewEncoder(w).Encode(response)
 	}).Methods(http.MethodGet)
 
-	// API v1 public routes
+	// Protected routes – app token middleware applied directly to each handler
+	router.Handle("/message",
+		auth(http.HandlerFunc(h.HandleGotifyNotification)),
+	).Methods(http.MethodPost)
+
+	// API v1 routes
 	api := router.PathPrefix("/api/v1").Subrouter()
 	api.HandleFunc("/health", h.HealthCheck).Methods(http.MethodGet)
-
-	// Protected subrouters – app token authentication applied
-	protected := router.NewRoute().Subrouter()
-	protected.Use(h.AppTokenMiddleware)
-	protected.HandleFunc("/message", h.HandleGotifyNotification).Methods(http.MethodPost)
-
-	protectedAPI := api.NewRoute().Subrouter()
-	protectedAPI.Use(h.AppTokenMiddleware)
-	protectedAPI.HandleFunc("/message", h.HandleGotifyNotification).Methods(http.MethodPost)
+	api.Handle("/message",
+		auth(http.HandlerFunc(h.HandleGotifyNotification)),
+	).Methods(http.MethodPost)
 }
